@@ -29,7 +29,7 @@ def check_message(msg, addr):
     try:
         msg_data2 = msglist[2]
     except IndexError:
-        print("empty")
+        pass
     if msg_prefix == "buddyTCP":
         handle_new_buddy_with_buddylist(msg_data, addr)
         return msg_data
@@ -40,12 +40,11 @@ def check_message(msg, addr):
         handle_new_buddy_with_buddylist(msg_data, addr)
         print("\nGroupmessage from " + msg_data + ": " + msg_data2)
     elif msg_prefix == "buddyQUIT":
-        print("trying to remove" + msg_data)
+        print("Buddy " + msg_data + " left")
         try:
             buddylist.remove((msg_data, addr))
-            print("Buddy " + msg_data + " left")
         except ValueError:
-            print("empty")
+            pass
 
 def handle_found_host(address = None):
     foundhost_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,9 +67,9 @@ def handle_found_host(address = None):
         buddylist.remove((msg_buddyname, address))
         print("Buddy " + msg_buddyname + " removed from buddylist")
     except UnboundLocalError:
-        print("empty")
+        pass
     except ValueError:
-        print("empty")
+        pass
     conn.close()
     foundhost_sock.close()
 
@@ -117,7 +116,7 @@ def handle_incoming_connection(conn, addr):
         buddylist.remove((msg_buddyname, addr))
         print("Buddy " + msg_buddyname + "disconnected")
     except UnboundLocalError:
-        print("empty")
+        pass
     conn.close()
 
 def tcp_server():
