@@ -200,7 +200,7 @@ def main_menu():
         print("address already in use. trying to reassign..")
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO)
-        except WindowsError:
+        except TypeError:
             pass
         #exit(1)
     global myname
