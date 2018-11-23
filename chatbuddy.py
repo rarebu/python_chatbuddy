@@ -9,7 +9,9 @@ def handle_new_buddy_with_buddylist(buddyname, addr):
     if type(addr) ==  tuple:
         addr = addr[0]
     if (buddyname, addr) not in buddylist:
-        print("New Buddy found: " + buddyname)
+        print("----- ----- ----- ----- -----")
+        print("\nNew Buddy found: " + buddyname)
+        print("----- ----- ----- ----- -----")
         buddylist.append((buddyname, addr))
 
 def check_message(msg, addr):
@@ -70,7 +72,6 @@ def handle_found_host(address = None):
         pass
     except ValueError:
         pass
-    conn.close()
     foundhost_sock.close()
 
 def port_scan(host):
@@ -136,11 +137,13 @@ def tcp_server():
     sock.close()
 
 def printlist():
-    print("there are " + str(len(buddylist)) + " buddys in your list.")
+    print("----- ----- ----- ----- -----")
+    print("There are " + str(len(buddylist)) + " buddys in your list.")
     count = 0
     for buddy in buddylist:
         print(str(count) + " " + buddy[0])
         count+=1
+    print("----- ----- ----- ----- -----")
 
 def chat():
     selection=input("\nPlease choose the Number of your ChatBuddy: ")
@@ -194,8 +197,12 @@ def main_menu():
     try:
         sock.bind((mylocalip, 50000))
     except OSError:
-        print("address already in use. try again later.")
-        exit(1)
+        print("address already in use. trying to reassign..")
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO)
+        except WindowsError:
+            pass
+        #exit(1)
     global myname
     myname = input('Enter your Nickname: ')
     global buddylist
