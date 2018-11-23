@@ -149,14 +149,14 @@ def chat():
     msg = ("buddyMSG-" + myname + "-" + data).encode('utf-8')
     x = buddylist[int(float(selection))]
     buddy_addr = x[1]
-    #tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #conn = ssock.connect((buddy_addr, 50000))
+    tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tmpsock.connect((buddy_addr, 50000))
     try:
-        sock.send(msg)
+        tmpsock.send(msg)
     except ConnectionResetError:
         print("connection reset error")
-        #conn.close()
         return ConnectionResetError
+    tmpsock.close()
 
 def group_chat():
     data=input("\nEnter your Message: ")
