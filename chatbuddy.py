@@ -78,7 +78,6 @@ def port_scan(host):
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.settimeout(.1)
         conn = sock.connect_ex((host, 50000))
-        conn.close()
         if conn == 0:
             if host != mylocalip:
                 newbuddy_thread = threading.Thread(target=handle_found_host, kwargs= {"address": host})
