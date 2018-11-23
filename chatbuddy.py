@@ -1,4 +1,6 @@
 # !/usr/bin/env python
+#debug with watch -n 0.5 "lsof -i -n"
+
 import threading, time, sys
 import socket, types
 import ipaddress
@@ -9,8 +11,8 @@ def handle_new_buddy_with_buddylist(buddyname, addr):
     if type(addr) ==  tuple:
         addr = addr[0]
     if (buddyname, addr) not in buddylist:
-        print("----- ----- ----- ----- -----")
-        print("\nNew Buddy found: " + buddyname)
+        print("\n----- ----- ----- ----- -----")
+        print("New Buddy found: " + buddyname)
         print("----- ----- ----- ----- -----")
         buddylist.append((buddyname, addr))
 
@@ -137,7 +139,7 @@ def tcp_server():
     sock.close()
 
 def printlist():
-    print("----- ----- ----- ----- -----")
+    print("\n----- ----- ----- ----- -----")
     print("There are " + str(len(buddylist)) + " buddys in your list.")
     count = 0
     for buddy in buddylist:
