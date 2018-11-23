@@ -160,14 +160,14 @@ def group_chat():
     data=input("\nEnter your Message: ")
     msg = ("buddyGMSG-" + myname + "-" + data).encode('utf-8')
     for buddy in buddylist:
-        sssock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #sssock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print("\n(buddy addr: " + str(buddy[1]))
-        conn = sssock.connect((buddy[1], 50000))
+        #conn = sssock.connect((buddy[1], 50000))
         try:
-            sssock.send(msg)
+            sock.send(msg)
         except ConnectionResetError:
             print("connection reset error")
-            conn.close()
+            #conn.close()
             return ConnectionResetError
 
 def send_quit_msg():
