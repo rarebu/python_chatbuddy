@@ -175,14 +175,14 @@ def group_chat():
 def send_quit_msg():
     msg = ("buddyQUIT-" + myname).encode('utf-8')
     for buddy in buddylist:
-        #tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #conn = tmpsock.connect((buddy[1], 50000))
+        tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tmpsock.connect((buddy[1], 50000))
         try:
-            sock.send(msg)
+            tmpsock.send(msg)
         except ConnectionResetError:
             print("connection reset error")
-            #conn.close()
             return ConnectionResetError
+        tmpsock.close()
 
 def main_menu():
     global sock
