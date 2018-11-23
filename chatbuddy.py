@@ -48,36 +48,37 @@ def check_message(msg, addr):
             print("empty")
 
 def handle_found_host(address = None):
-    ssock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn = ssock.connect((address, 50000))
+    foundhost_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    conn = foundhost_sock.connect((address, 50000))
     msg = ("buddyTCP-" + myname)
-    conn = ssock.send(msg.encode('utf-8'))
+    conn = foundhost_sock.send(msg.encode('utf-8'))
     while True:
         try:
-            msg = ssock.recv(1024).decode('utf-8')
+            msg = foundhost_sock.recv(1024).decode('utf-8')
             if not msg:
                 print("connection closed!!!")
-                ssock.close()
+                foundhost_sock.close()
                 break
             msg_buddyname = check_message(msg, address)
             time.sleep(0.5)
         except socket.timeout:
             print('Socket timed out at', time.asctime())
             break
-    ssock.close()
     try:
         buddylist.remove((msg_buddyname, address))
-        print("Buddy " + msg_buddyname + "removed from buddylist")
+        print("Buddy " + msg_buddyname + " removed from buddylist")
     except UnboundLocalError:
         print("empty")
     except ValueError:
         print("empty")
+    conn.close()
+    foundhost_sock.close()
 
 def port_scan(host):
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.settimeout(.1)
         conn = sock.connect_ex((host, 50000))
-        sock.close()
+        conn.close()
         if conn == 0:
             if host != mylocalip:
                 newbuddy_thread = threading.Thread(target=handle_found_host, kwargs= {"address": host})
@@ -118,6 +119,7 @@ def handle_incoming_connection(conn, addr):
         print("Buddy " + msg_buddyname + "disconnected")
     except UnboundLocalError:
         print("empty")
+    conn.close()
 
 def tcp_server():
     sock.listen(1)
@@ -132,6 +134,7 @@ def tcp_server():
             p.start()
         except socket.timeout:
             print('\nSocket timed out listening', time.asctime())
+    conn.close()
     sock.close()
 
 def printlist():
@@ -147,13 +150,13 @@ def chat():
     msg = ("buddyMSG-" + myname + "-" + data).encode('utf-8')
     x = buddylist[int(float(selection))]
     buddy_addr = x[1]
-    ssock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn = ssock.connect((buddy_addr, 50000))
+    #tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #conn = ssock.connect((buddy_addr, 50000))
     try:
-        ssock.send(msg)
+        sock.send(msg)
     except ConnectionResetError:
         print("connection reset error")
-        conn.close()
+        #conn.close()
         return ConnectionResetError
 
 def group_chat():
