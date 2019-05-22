@@ -21,7 +21,7 @@ def handle_new_buddy_with_buddylist(buddyname, addr):
 def check_message(msg, addr):  # todo nichts returnen
     print("\n--- msg: " + msg)
     try:
-        msg_end = msg[2:]  # todo: zwischen prefix und \o
+        msg_end = msg[2:]  # todo: zwischen prefix und \0
     except IndexError:
         return IndexError
     try:
@@ -55,6 +55,7 @@ def check_message(msg, addr):  # todo nichts returnen
 
 
 def handle_found_host(address=None):  # todo: prefix 0 (nach namen fragen) #todo:
+    print("----- YES HANdle_foudn_host")
     foundhost_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     foundhost_sock.connect((address, 50000))
     msg = "0\0"  # todo keep connection active here and APPEND to buddylist[]
@@ -89,6 +90,7 @@ def port_scan(host):
             (host, 50000))  # todo scan for addresses add to buddylist as tuple with connection and addr
         if conn == 0:
             if host != mylocalip:
+                print("----- YES FOUND ONE")
                 newbuddy_thread = threading.Thread(target=handle_found_host, kwargs={"address": host})
                 newbuddy_thread.daemon = True
                 newbuddy_thread.start()
@@ -137,7 +139,7 @@ def tcp_server():
             if mylocalip == incomingaddr[0]:  # todo what is happening here
                 continue
             my_id = myname.encode("ascii", "replace")
-            conn.send(my_id)
+            conn[0].send(my_id)
             p = threading.Thread(target=handle_incoming_connection, args=conn)
             p.daemon = True
             p.start()
