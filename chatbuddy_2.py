@@ -8,7 +8,7 @@ from multiprocessing import Process
 from contextlib import closing
 
 
-def handle_new_buddy_with_buddylist(buddyname, addr):
+def handle_new_buddy_with_buddylist(buddyname, addr): #todo obsolete
     if type(addr) == tuple:
         addr = addr[0]
     if (buddyname, addr) not in buddylist:
@@ -30,9 +30,16 @@ def check_message(msg, addr):  # todo nichts returnen
         return IndexError
     print("\n--- msg_prefix1: " + msg_prefix1)
     if msg_prefix1 == "0":
+        print("addr: " + str(addr))
         send_name(addr)
-        handle_new_buddy_with_buddylist(msg_end, addr)  # todo: sende namen zurück
-        return msg_end
+        for buddy in buddylist:
+            print(str(buddy))
+        return
+        time.sleep(2)
+        print("send_name")#todo ask for name ONLY if not already in buddylist
+        ask_for_name((addr[0], 50000))
+
+        print("ask_for_name")
     elif msg_prefix1 == "1":
         try:
             msg_prefix2 = msg[:1]
@@ -40,6 +47,7 @@ def check_message(msg, addr):  # todo nichts returnen
             return IndexError
         if msg_prefix2 == "0":
             handle_new_buddy_with_buddylist(msg_end, addr)
+            #todo find sender of message with searching in buddylist
             print("\nMessage from " + msg_end + ": " + msg_end)
         elif msg_prefix2 == "1":
             handle_new_buddy_with_buddylist(msg_end, addr)
@@ -54,44 +62,57 @@ def check_message(msg, addr):  # todo nichts returnen
             pass
 
 
-def handle_found_host(address=None):  # todo: prefix 0 (nach namen fragen) #todo:
-    print("----- YES HANdle_foudn_host")
-    foundhost_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    foundhost_sock.connect((address, 50000))
-    msg = "0\0"  # todo keep connection active here and APPEND to buddylist[]
-    foundhost_sock.send(msg.encode("ascii", "replace"))
-    buddylist.append((address, foundhost_sock))  # danach??
-    while True:
-        try:
-            msg = foundhost_sock.recv(1004).decode("ascii")
-            if not msg:
-                print("connection closed!!!")
-                foundhost_sock.close()
-                break
-            msg_buddyname = check_message(msg, address)
-            time.sleep(0.5)
-        except socket.timeout:
-            print('Socket timed out at', time.asctime())
-            break
+def send_name(address):
+    tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("send_name 1" + str(address)) #todo entrypoint why is is stopping here when scanning
+    return
+    tmpsock.connect((address[0], address[1]))
+    print("send name 1.5")
+    my_id = myname.encode("ascii", "replace")
+    print("send_name 2")
+
     try:
-        buddylist.remove((msg_buddyname, address))
-        print("Buddy " + msg_buddyname + " removed from buddylist")
-    except UnboundLocalError:
-        pass
-    except ValueError:
-        pass
-    foundhost_sock.close()
+        tmpsock.send(my_id)
+        print("send_name 3")
+
+    except ConnectionResetError:
+        print("connection reset error")
+        return ConnectionResetError
+    tmpsock.close()
+    print("send_name 4")
+
+
+
+def ask_for_name(address = None):
+    print("\nask_for_name: " + str(address))
+    tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tmpsock.connect((address[0], address[1]))
+    msg = "0\0"
+    msg = msg.encode("ascii")
+    try:
+        print("asking: with a 0")
+        tmpsock.send(msg)
+    except ConnectionResetError:
+        print("connection reset error")
+        return ConnectionResetError
+    try:
+        name = tmpsock.recv(1004).decode("ascii", "replace")
+        print("\nappending to buddylist:" + name)
+        buddylist.append((name, address[0]))
+    except socket.timeout:
+        print('Socket timed out at', time.asctime())
+    tmpsock.close()
 
 
 def port_scan(host):
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.settimeout(.1)
         conn = sock.connect_ex(
-            (host, 50000))  # todo scan for addresses add to buddylist as tuple with connection and addr
+            (host, 50000))
         if conn == 0:
             if host != mylocalip:
-                print("----- YES FOUND ONE")
-                newbuddy_thread = threading.Thread(target=handle_found_host, kwargs={"address": host})
+                arglist = [host, 50000]
+                newbuddy_thread = threading.Thread(target=ask_for_name, kwargs={"address": arglist})
                 newbuddy_thread.daemon = True
                 newbuddy_thread.start()
 
@@ -106,10 +127,10 @@ def search_partners():
 
 def handle_incoming_connection(conn, addr):
     try:
-        data = conn.recv(1024)  # todo<. receive until \0
+        data = conn.recv(1004)  # todo<. receive until \0
         msg = data.decode("ascii", "replace")
         try:
-            msg_buddyname = check_message(msg, addr)
+            check_message(msg, addr)
         except IndexError:
             return
         except ConnectionResetError:
@@ -136,7 +157,7 @@ def tcp_server():
         try:
             conn = sock.accept()
             incomingaddr = conn[1]
-            if mylocalip == incomingaddr[0]:  # todo what is happening here
+            if mylocalip == incomingaddr[0]:
                 continue
             my_id = myname.encode("ascii", "replace")
             conn[0].send(my_id)
@@ -151,24 +172,18 @@ def tcp_server():
 
 def printlist():
     print("\n----- ----- ----- ----- -----")
-    print("There are " + str(len(buddylist)) + " buddys in your list.")
-    count = 0
-    for buddy in buddylist:
-        print(str(count) + " " + buddy[0])
-        count += 1
+    if len(buddylist) > 1:
+        print("There are " + str(len(buddylist)) + " buddys in your Buddylist")
+        count = 0
+        for buddy in buddylist:
+            print(str(count) + " " + buddy[0])
+            count += 1
+    elif len(buddylist) == 1:
+        print("There is one buddy in your Buddylist")
+        print("0 " + str(buddylist[0][0]))
+    elif len(buddylist) == 0:
+        print("The Buddylist is empty :/")
     print("----- ----- ----- ----- -----")
-
-
-def send_name(addr):
-    tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tmpsock.connect((addr[0], addr[1]))
-    msg = myname + "\o"
-    try:
-        tmpsock.send(msg)
-    except ConnectionResetError:
-        print("connection reset error")
-        return ConnectionResetError
-    tmpsock.close()
 
 
 def chat():
@@ -191,11 +206,11 @@ def group_chat():
     data = input("\nEnter your Message: ")
     msg = ("11" + data).encode("ascii", "replace")
     for buddy in buddylist:
-        # sssock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tmpsock.connect((buddy[1], 50000))
         print("\n(buddy addr: " + str(buddy[1]))
-        # conn = sssock.connect((buddy[1], 50000))
         try:
-            sock.send(msg)
+            tmpsock.send(msg)
         except ConnectionResetError:
             print("connection reset error")
             # conn.close()
@@ -206,7 +221,7 @@ def send_quit_msg():
     msg = ("buddyQUIT-" + myname).encode("ascii", "replace")
     for buddy in buddylist:
         tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        tmpsock.connect((buddy[1], 50000))  # todo port
+        tmpsock.connect((buddy[1], 50000))
         try:
             tmpsock.send(msg)
         except ConnectionResetError:
