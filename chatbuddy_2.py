@@ -2,28 +2,17 @@
 # debug with watch -n 0.5 "lsof -i -n"
 
 import threading, time, sys
-import socket, types
-import ipaddress
-from multiprocessing import Process
+import socket
 from contextlib import closing
 
 global scanning
 scanning = False
 
+
 def handle_new_buddy_with_buddylist(addr):
     newbuddy_thread = threading.Thread(target=ask_for_name, kwargs={"address": addr})
     newbuddy_thread.daemon = True
     newbuddy_thread.start()
-    #ask_for_name(addr)
-    #if (ask_for_name(addr), addr) not in buddylist:
-    #if type(addr) == tuple:
-    #    addr = addr[0]
-    #    print("addr: " + addr)
-    #if (buddyname, addr) not in buddylist:
-    #    print("\n----- ----- ----- ----- -----")
-    #    print("New Buddy found: " + buddyname)
-    #    print("----- ----- ----- ----- -----")
-    #    buddylist.append((buddyname, addr))
 
 
 def get_sender_from_ip(addr):
@@ -34,7 +23,6 @@ def get_sender_from_ip(addr):
 
 
 def check_message(msg, addr):
-    print("\n--- msg: " + msg)
     try:
         msg_end = msg[2:]  # todo: zwischen prefix und \0
     except IndexError:
@@ -54,9 +42,12 @@ def check_message(msg, addr):
             try:
                 print("\nMessage from " + get_sender_from_ip(addr[0]) + ": " + msg_end)
             except TypeError:
-                print("\nMessage from unknown Sender: " + msg_end)
+                print("\nMessage from unknown Sender (" + addr[0] + "): " + msg_end)
         elif msg_prefix2 == "1":
-            print("\nGroupmessage from " + get_sender_from_ip(addr[0]) + ": " + msg_end)
+            try:
+                print("\nGroupmessage from " + get_sender_from_ip(addr[0]) + ": " + msg_end)
+            except TypeError:
+                print("\nGroupmessage from unknown Sender (" + addr[0] + "): " + msg_end)
         return "1"
     return "-1"
 
@@ -71,23 +62,20 @@ def send_name(tmp_socket):
 
 
 def ask_for_name(address):
-    print("\nask_for_name: " + str(address))
     tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     tmpsock.connect((address, 50000))
     msg = "0\0"
     msg = msg.encode("ascii")
     try:
-        print("asking: with a 0")
         tmpsock.send(msg)
     except ConnectionResetError:
         print("connection reset error")
         return ConnectionResetError
     try:
         name = tmpsock.recv(1004).decode("ascii", "replace")
-        print("received : " + name)
-        if (name, address[0]) not in buddylist:
-            buddylist.append((name, address[0]))
-            print("\nappending to buddylist:" + name)
+        if (name, address) not in buddylist:
+            buddylist.append((name, address))
+            print("\n::::: New Buddy found: " + name + " (" + address + ")")
     except socket.timeout:
         print('Socket timed out at', time.asctime())
     tmpsock.close()
@@ -164,19 +152,17 @@ def tcp_server():
 
 
 def printlist():
-    print("\n----- ----- ----- ----- -----")
     if len(buddylist) > 1:
-        print("There are " + str(len(buddylist)) + " buddys in your Buddylist")
+        print(":::::  There are " + str(len(buddylist)) + " buddys in your Buddylist")
         count = 0
         for buddy in buddylist:
-            print(str(count) + " " + buddy[0])
+            print("::::: " + str(count) + " " + buddy[0] + " (" + buddylist[0][1] + ")")
             count += 1
     elif len(buddylist) == 1:
-        print("There is one buddy in your Buddylist")
-        print("0 " + str(buddylist[0][0]))
+        print(":::::  There is one buddy in your Buddylist")
+        print(":::::  0 " + str(buddylist[0][0]) + " (" + buddylist[0][1] + ")")
     elif len(buddylist) == 0:
-        print("The Buddylist is empty :/")
-    print("----- ----- ----- ----- -----")
+        print("::::: The Buddylist is empty :/")
 
 
 def chat():
@@ -184,9 +170,9 @@ def chat():
     data = input("\nEnter your Message: ")
     msg = ("10" + data + "\0").encode("ascii", "replace")
     x = buddylist[int(float(selection))]
-    buddy_addr = x[1]  # todo get running socket from buddylist
+    buddy_addr = x[1]
     tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tmpsock.connect((buddy_addr, 50000))  # todo get addr from buddy list
+    tmpsock.connect((buddy_addr, 50000))
     try:
         tmpsock.send(msg)
     except ConnectionResetError:
@@ -201,16 +187,14 @@ def group_chat():
     for buddy in buddylist:
         tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tmpsock.connect((buddy[1], 50000))
-        print("\n(buddy addr: " + str(buddy[1]))
         try:
             tmpsock.send(msg)
         except ConnectionResetError:
             print("connection reset error")
-            # conn.close()
             return ConnectionResetError
 
 
-def send_quit_msg():
+def send_quit_msg():#todo quit mechanism???
     msg = ("buddyQUIT-" + myname).encode("ascii", "replace")
     for buddy in buddylist:
         tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -221,6 +205,10 @@ def send_quit_msg():
             print("connection reset error")
             return ConnectionResetError
         tmpsock.close()
+
+
+def print_options():
+    print('Valid options are S (Scan), L (List), C (Chat), G (GroupChat), Q (Quit)')
 
 
 def main_menu():
@@ -241,15 +229,15 @@ def main_menu():
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         except TypeError:
             pass
-        # exit(1)
     myname = input('Enter your Nickname: ')
     buddylist = []
     server_thread = threading.Thread(target=tcp_server)
     server_thread.daemon = True
     server_thread.start()
+    print_options()
     while True:
         try:
-            choice = input('choose an option ')
+            choice = input('choose an option (h for help): ')
         except KeyboardInterrupt:
             continue
         if choice == 'S':
@@ -257,19 +245,20 @@ def main_menu():
             scan_thread = threading.Thread(target=search_partners)
             scan_thread.daemon = True
             scan_thread.start()
-        if choice == 'L':
+        elif choice == 'L':
             printlist()
-        if choice == 'C':
+        elif choice == 'C':
+            printlist()
             chat()
-        if choice == 'G':
+        elif choice == 'G':
             group_chat()
-        if choice == 'Q':
+        elif choice == 'Q':
             send_quit_msg()
             print("Quitting..")
             sock.close()
             sys.exit()
         else:
-            print('Valid options are S (Scan), L (List), C (Chat), G (GroupChat), Q (Quit)')
+            print_options()
 
 
 if __name__ == '__main__':
