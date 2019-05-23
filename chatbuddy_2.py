@@ -7,6 +7,8 @@ import ipaddress
 from multiprocessing import Process
 from contextlib import closing
 
+global scanning
+scanning = False
 
 def handle_new_buddy_with_buddylist(addr):
     newbuddy_thread = threading.Thread(target=ask_for_name, kwargs={"address": addr})
@@ -74,7 +76,6 @@ def ask_for_name(address):
     tmpsock.connect((address, 50000))
     msg = "0\0"
     msg = msg.encode("ascii")
-    print("betweenstep")
     try:
         print("asking: with a 0")
         tmpsock.send(msg)
@@ -86,7 +87,7 @@ def ask_for_name(address):
         print("received : " + name)
         if (name, address[0]) not in buddylist:
             buddylist.append((name, address[0]))
-            print("\nappending to buddylist:" + name)  # todo check if already in buddy list
+            print("\nappending to buddylist:" + name)
     except socket.timeout:
         print('Socket timed out at', time.asctime())
     tmpsock.close()
@@ -105,22 +106,27 @@ def port_scan(host):
 
 
 def search_partners():
+    global scanning
+    scanning = True
     count = 0
     for ip in range(1, 256):
         count += 1
         port_scan("192.168.0." + str(ip))
     print("Scanned " + str(count) + " Hosts")
+    scanning = False
 
 
 def handle_incoming_connection(conn, addr):
+    global scanning
     try:
         data = conn.recv(1004)  # todo<. receive until \0
         msg = data.decode("ascii", "replace")
         try:
             if check_message(msg, addr) == "0":
-                print("handle_incoming_connection: check_message = 0")
                 send_name(conn)
-                handle_new_buddy_with_buddylist(addr[0])
+                conn.close()
+                if not scanning:
+                    handle_new_buddy_with_buddylist(addr[0])
         except IndexError:
             return
         except ConnectionResetError:
@@ -145,15 +151,14 @@ def tcp_server():
     sock.listen(1)
     while True:
         try:
-            conn = sock.accept()
-            incomingaddr = conn[1]
-            if mylocalip == incomingaddr[0]:
+            conn, address = sock.accept()
+            if mylocalip == address[0]:
                 continue
-            p = threading.Thread(target=handle_incoming_connection, args=conn)
+            p = threading.Thread(target=handle_incoming_connection, args=[conn, address])
             p.daemon = True
             p.start()
         except socket.timeout:
-            print('\nSocket timed out listening', time.asctime())
+            pass
     conn.close()
     sock.close()
 
@@ -220,8 +225,10 @@ def send_quit_msg():
 
 def main_menu():
     global sock
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    global myname
+    global buddylist
     global mylocalip
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     mylocalip = ((([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [
         [(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in
          [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0])
@@ -235,9 +242,7 @@ def main_menu():
         except TypeError:
             pass
         # exit(1)
-    global myname
     myname = input('Enter your Nickname: ')
-    global buddylist
     buddylist = []
     server_thread = threading.Thread(target=tcp_server)
     server_thread.daemon = True
