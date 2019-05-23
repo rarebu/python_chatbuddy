@@ -8,17 +8,30 @@ from multiprocessing import Process
 from contextlib import closing
 
 
-def handle_new_buddy_with_buddylist(buddyname, addr): #todo obsolete
-    if type(addr) == tuple:
-        addr = addr[0]
-    if (buddyname, addr) not in buddylist:
-        print("\n----- ----- ----- ----- -----")
-        print("New Buddy found: " + buddyname)
-        print("----- ----- ----- ----- -----")
-        buddylist.append((buddyname, addr))
+def handle_new_buddy_with_buddylist(addr):
+    newbuddy_thread = threading.Thread(target=ask_for_name, kwargs={"address": addr})
+    newbuddy_thread.daemon = True
+    newbuddy_thread.start()
+    #ask_for_name(addr)
+    #if (ask_for_name(addr), addr) not in buddylist:
+    #if type(addr) == tuple:
+    #    addr = addr[0]
+    #    print("addr: " + addr)
+    #if (buddyname, addr) not in buddylist:
+    #    print("\n----- ----- ----- ----- -----")
+    #    print("New Buddy found: " + buddyname)
+    #    print("----- ----- ----- ----- -----")
+    #    buddylist.append((buddyname, addr))
 
 
-def check_message(msg, addr):  # todo nichts returnen
+def get_sender_from_ip(addr):
+    for buddy in buddylist:
+        if buddy[1] == addr:
+            return buddy[0]
+    return None
+
+
+def check_message(msg, addr):
     print("\n--- msg: " + msg)
     try:
         msg_end = msg[2:]  # todo: zwischen prefix und \0
@@ -28,67 +41,40 @@ def check_message(msg, addr):  # todo nichts returnen
         msg_prefix1 = msg[0]
     except IndexError:
         return IndexError
-    print("\n--- msg_prefix1: " + msg_prefix1)
     if msg_prefix1 == "0":
-        print("addr: " + str(addr))
-        send_name(addr)
-        for buddy in buddylist:
-            print(str(buddy))
-        return
-        time.sleep(2)
-        print("send_name")#todo ask for name ONLY if not already in buddylist
-        ask_for_name((addr[0], 50000))
-
-        print("ask_for_name")
+        return "0"
     elif msg_prefix1 == "1":
         try:
-            msg_prefix2 = msg[:1]
+            msg_prefix2 = msg[1]
         except IndexError:
             return IndexError
         if msg_prefix2 == "0":
-            handle_new_buddy_with_buddylist(msg_end, addr)
-            #todo find sender of message with searching in buddylist
-            print("\nMessage from " + msg_end + ": " + msg_end)
+            try:
+                print("\nMessage from " + get_sender_from_ip(addr[0]) + ": " + msg_end)
+            except TypeError:
+                print("\nMessage from unknown Sender: " + msg_end)
         elif msg_prefix2 == "1":
-            handle_new_buddy_with_buddylist(msg_end, addr)
-            print("\nGroupmessage from " + msg_end + ": " + msg_end)
-        handle_new_buddy_with_buddylist(msg_end, addr)
-        print("\nMessage from " + msg_end + ": " + msg_end)
-    elif msg_end == "buddyQUIT":
-        print("Buddy " + msg_end + " left")
-        try:
-            buddylist.remove((msg_end, addr))
-        except ValueError:
-            pass
+            print("\nGroupmessage from " + get_sender_from_ip(addr[0]) + ": " + msg_end)
+        return "1"
+    return "-1"
 
 
-def send_name(address):
-    tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print("send_name 1" + str(address)) #todo entrypoint why is is stopping here when scanning
-    return
-    tmpsock.connect((address[0], address[1]))
-    print("send name 1.5")
+def send_name(tmp_socket):
     my_id = myname.encode("ascii", "replace")
-    print("send_name 2")
-
     try:
-        tmpsock.send(my_id)
-        print("send_name 3")
-
+        tmp_socket.send(my_id)
     except ConnectionResetError:
-        print("connection reset error")
         return ConnectionResetError
-    tmpsock.close()
-    print("send_name 4")
+    tmp_socket.close()
 
 
-
-def ask_for_name(address = None):
+def ask_for_name(address):
     print("\nask_for_name: " + str(address))
     tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tmpsock.connect((address[0], address[1]))
+    tmpsock.connect((address, 50000))
     msg = "0\0"
     msg = msg.encode("ascii")
+    print("betweenstep")
     try:
         print("asking: with a 0")
         tmpsock.send(msg)
@@ -97,8 +83,10 @@ def ask_for_name(address = None):
         return ConnectionResetError
     try:
         name = tmpsock.recv(1004).decode("ascii", "replace")
-        print("\nappending to buddylist:" + name)
-        buddylist.append((name, address[0]))
+        print("received : " + name)
+        if (name, address[0]) not in buddylist:
+            buddylist.append((name, address[0]))
+            print("\nappending to buddylist:" + name)  # todo check if already in buddy list
     except socket.timeout:
         print('Socket timed out at', time.asctime())
     tmpsock.close()
@@ -111,8 +99,7 @@ def port_scan(host):
             (host, 50000))
         if conn == 0:
             if host != mylocalip:
-                arglist = [host, 50000]
-                newbuddy_thread = threading.Thread(target=ask_for_name, kwargs={"address": arglist})
+                newbuddy_thread = threading.Thread(target=ask_for_name, kwargs={"address": host})
                 newbuddy_thread.daemon = True
                 newbuddy_thread.start()
 
@@ -130,7 +117,10 @@ def handle_incoming_connection(conn, addr):
         data = conn.recv(1004)  # todo<. receive until \0
         msg = data.decode("ascii", "replace")
         try:
-            check_message(msg, addr)
+            if check_message(msg, addr) == "0":
+                print("handle_incoming_connection: check_message = 0")
+                send_name(conn)
+                handle_new_buddy_with_buddylist(addr[0])
         except IndexError:
             return
         except ConnectionResetError:
@@ -159,8 +149,6 @@ def tcp_server():
             incomingaddr = conn[1]
             if mylocalip == incomingaddr[0]:
                 continue
-            my_id = myname.encode("ascii", "replace")
-            conn[0].send(my_id)
             p = threading.Thread(target=handle_incoming_connection, args=conn)
             p.daemon = True
             p.start()
