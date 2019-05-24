@@ -9,22 +9,27 @@ import sys
 
 
 class ChatBuddy:
-    global scanning
-    global myname
-    global buddylist
-    global mylocalip
+    def __init__(self):
+        self.main_menu()
 
-    mylocalip = ((([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [
-        [(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in
-         [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0])
-    scanning = False
-    buddylist = []
-    myname = input('Enter your Nickname: ')
+    @staticmethod
+    def init():
+        global scanning
+        global myname
+        global buddylist
+        global mylocalip
+
+        mylocalip = ((([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [
+            [(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in
+             [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0])
+        scanning = False
+        buddylist = []
+        myname = input('Enter your Nickname: ')
 
     def handle_new_buddy_with_buddylist(self, addr):
-        newbuddy_thread = threading.Thread(target=self.ask_for_name, kwargs={"address": addr})
-        newbuddy_thread.daemon = True
-        newbuddy_thread.start()
+        ney_buddy_thread = threading.Thread(target=self.ask_for_name, kwargs={"address": addr})
+        ney_buddy_thread.daemon = True
+        ney_buddy_thread.start()
 
     @staticmethod
     def get_sender_from_ip(addr):
@@ -37,18 +42,18 @@ class ChatBuddy:
         try:
             msg_end = msg[2:]  # todo: zwischen prefix und \0
         except IndexError:
-            return IndexError
+            print("IndexError in check_message() at msg_end = msg[2:]")
         try:
             msg_prefix1 = msg[0]
         except IndexError:
-            return IndexError
+            print("IndexError in check_message() at msg_prefix1 = msg[0]")
         if msg_prefix1 == "0":
             return "0"
         elif msg_prefix1 == "1":
             try:
                 msg_prefix2 = msg[1]
             except IndexError:
-                return IndexError
+                print("IndexError in check_message() at msg_prefix2 = msg[1]")
             if msg_prefix2 == "0":
                 try:
                     print("\nMessage from " + self.get_sender_from_ip(addr[0]) + ": " + msg_end)
@@ -68,7 +73,7 @@ class ChatBuddy:
         try:
             tmp_socket.send(my_id)
         except ConnectionResetError:
-            return ConnectionResetError
+            print("ConnectionResetError in send_name()")
         tmp_socket.close()
 
     @staticmethod
@@ -80,9 +85,8 @@ class ChatBuddy:
         try:
             tmpsock.send(msg)
         except ConnectionResetError:
-            print("connection reset error")
-            return ConnectionResetError
-        try:
+            print("ConnectionResetError in ask_for_name()")
+        try:    # todo somewhereelse(?): also ask for name if appending to buddylist (if name changes)
             name = tmpsock.recv(1004).decode("ascii", "replace")
             if (name, address) not in buddylist:
                 buddylist.append((name, address))
@@ -98,18 +102,19 @@ class ChatBuddy:
                 (host, 50000))
             if conn == 0:
                 if host != mylocalip:
-                    newbuddy_thread = threading.Thread(target=self.ask_for_name, kwargs={"address": host})
-                    newbuddy_thread.daemon = True
-                    newbuddy_thread.start()
+                    ney_buddy_thread = threading.Thread(target=self.ask_for_name, kwargs={"address": host})
+                    ney_buddy_thread.daemon = True
+                    ney_buddy_thread.start()
 
     def search_partners(self):
-        self.scanning = True
+        global scanning
+        scanning = True
         count = 0
         for ip in range(1, 256):
             count += 1
             self.port_scan("192.168.0." + str(ip))
         print("Scanned " + str(count) + " Hosts")
-        self.scanning = False
+        scanning = False
 
     def handle_incoming_connection(self, conn, addr):
         try:
@@ -119,25 +124,22 @@ class ChatBuddy:
                 if self.check_message(msg, addr) == "0":
                     self.send_name(conn)
                     conn.close()
+                    global scanning
                     if not scanning:
                         self.handle_new_buddy_with_buddylist(addr[0])
             except IndexError:
+                print("OOPS - IndexError in handle_incoming_connection()")
                 return
             except ConnectionResetError:
+                print("OOPS - ConnectionResetError in handle_incoming_connection()")
                 return
         except socket.timeout:
             print('Socket timed out at', time.asctime())
             conn.close()
             return
         except OSError:
+            print("OOPS - OSError in handle_incoming_connection()")
             return
-
-    #    try:
-    #        buddylist.remove((msg_buddyname, addr))
-    #        print("Buddy " + msg_buddyname + "disconnected")
-    #    except UnboundLocalError:
-    #        pass
-    #    conn.close() ##close connection here, remove from buddylist
 
     def tcp_server(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -148,7 +150,7 @@ class ChatBuddy:
             try:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             except TypeError:
-                pass
+                print("OOPS - TypeError in tcp_server")
         print("Binding Server to " + mylocalip + ":50000")
         sock.listen(1)
         while True:
@@ -165,7 +167,7 @@ class ChatBuddy:
         sock.close()
 
     @staticmethod
-    def printlist():
+    def print_list():
         if len(buddylist) > 1:
             print(":::::  There are " + str(len(buddylist)) + " buddys in your Buddylist")
             count = 0
@@ -183,17 +185,22 @@ class ChatBuddy:
         selection = input("\nPlease choose the Number of your ChatBuddy: ")
         data = input("\nEnter your Message: ")
         msg = ("10" + data + "\0").encode("ascii", "replace")
-        x = buddylist[int(float(selection))]
-        buddy_addr = x[1]
-        tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print("buddy_addr: " + buddy_addr)
-        tmpsock.connect((buddy_addr, 50000))
         try:
-            tmpsock.send(msg)
-        except ConnectionResetError:
-            print("connection reset error")
-            return ConnectionResetError
-        tmpsock.close()
+            buddy = buddylist[int(float(selection))]
+            buddy_addr = buddy[1]
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.connect((buddy_addr, 50000))
+            except ConnectionResetError:
+                print("OOPS - ConnectionResetError in chat() at sock.connect()")
+            try:
+                sock.send(msg)
+            except ConnectionResetError:
+                print("OOPS - ConnectionResetError in chat() at sock.send()")
+                return ConnectionResetError
+            sock.close()
+        except ValueError:
+            print("OOPS - ValueError in chat()")
 
     @staticmethod
     def group_chat():
@@ -205,27 +212,15 @@ class ChatBuddy:
             try:
                 tmpsock.send(msg)
             except ConnectionResetError:
-                print("connection reset error")
+                print("ConnectionResetError in group_chat()")
                 return ConnectionResetError
-
-    @staticmethod
-    def send_quit_msg():  # todo quit mechanism???
-        msg = ("buddyQUIT-" + myname).encode("ascii", "replace")
-        for buddy in buddylist:
-            tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            tmpsock.connect((buddy[1], 50000))
-            try:
-                tmpsock.send(msg)
-            except ConnectionResetError:
-                print("connection reset error")
-                return ConnectionResetError
-            tmpsock.close()
 
     @staticmethod
     def print_options():
         print('Valid options are S (Scan), L (List), C (Chat), G (GroupChat), Q (Quit)')
 
     def main_menu(self):
+        self.init()
         server_thread = threading.Thread(target=self.tcp_server)
         server_thread.daemon = True
         server_thread.start()
@@ -241,14 +236,13 @@ class ChatBuddy:
                 scan_thread.daemon = True
                 scan_thread.start()
             elif choice == 'L':
-                self.printlist()
+                self.print_list()
             elif choice == 'C':
-                self.printlist()
+                self.print_list()
                 self.chat()
             elif choice == 'G':
                 self.group_chat()
             elif choice == 'Q':
-                self.send_quit_msg()
                 print("Quitting..")
                 sys.exit()
             else:
@@ -256,5 +250,3 @@ class ChatBuddy:
 
 
 cb = ChatBuddy()
-cb.main_menu()
-
