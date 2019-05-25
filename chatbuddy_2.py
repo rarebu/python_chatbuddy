@@ -10,6 +10,8 @@ import sys
 
 class ChatBuddy:
     def __init__(self):
+        self.init()
+        self.print_options()
         self.main_menu()
 
     @staticmethod
@@ -38,6 +40,42 @@ class ChatBuddy:
                 return buddy[0]
         return None
 
+# todo: funktionen anchbauen und input auf /0 prüfen
+    # def check_message(self, msg, addr):
+    #     msg_list = msg.split("\0")
+    #     print("1: " + str(msg_list))
+    #     msg = msg_list[0]
+    #     print("2: " + msg)
+    #     try:
+    #         msg_prefix1 = msg[0]
+    #     except IndexError:
+    #         print("msg: " + msg)
+    #         print("yeep")
+    #         return "-1"
+    #     print("3: " + msg_prefix1)
+    #     if msg_prefix1 == "0":
+    #         print("4: returning")
+    #         return "0"
+    #     elif msg_prefix1 == "1":
+    #         try:
+    #             msg_prefix2 = msg[1]
+    #         except IndexError:
+    #             return "-1"
+    #         if msg_prefix2 == "0":
+    #             message = msg[2:]
+    #             try:
+    #                 print("\nMessage from " + self.get_sender_from_ip(addr[0]) + ": " + message)
+    #             except TypeError:
+    #                 print("\nMessage from unknown Sender (" + addr[0] + "): " + message)
+    #         elif msg_prefix2 == "1":
+    #             try:
+    #                 print("\nGroupmessage from " + self.get_sender_from_ip(addr[0]) + ": " + message)
+    #             except TypeError:
+    #                 print("\nGroupmessage from unknown Sender (" + addr[0] + "): " + message)
+    #         return "1"
+    #     else :
+    #         return "-1"
+
     def check_message(self, msg, addr):
         try:
             msg_end = msg[2:]  # todo: zwischen prefix und \0
@@ -46,7 +84,7 @@ class ChatBuddy:
         try:
             msg_prefix1 = msg[0]
         except IndexError:
-            print("IndexError in check_message() at msg_prefix1 = msg[0]")
+            return "-1"               # empty message
         if msg_prefix1 == "0":
             return "0"
         elif msg_prefix1 == "1":
@@ -76,6 +114,34 @@ class ChatBuddy:
             print("ConnectionResetError in send_name()")
         tmp_socket.close()
 
+    # @staticmethod
+    # def ask_for_name(address):
+    #     tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #     try:
+    #         tmpsock.connect((address, 50000))
+    #     except:
+    #         print("\nOOPS - in ask_for_name() at sock.connect")
+    #     msg = "0\0"
+    #     msg = msg.encode("ascii")
+    #     try:
+    #         print("ASKING FOR NAME")
+    #         tmpsock.send(msg)
+    #     except ConnectionResetError:
+    #         print("ConnectionResetError in ask_for_name()")
+    #     try:    # todo somewhereelse(?): also ask for name if appending to buddy_list (if name changes)
+    #         name = tmpsock.recv(1004).decode("ascii", "replace")
+    #         for buddy in buddy_list:
+    #             if (buddy[1] != address) and (buddy[0] != name):
+    #                     print("\n::::: New Buddy found: " + name + " (" + address + ")")
+    #                     buddy_list.append((name, address))
+    #             elif (buddy[1] == address) and (buddy[0] != name):
+    #                     print("\n::::: Buddy " + buddy[1] + " has a new name: " + name + " (" + address + ")")
+    #                     buddy_list.remove(buddy)
+    #                     buddy_list.append((name, address))
+    #     except socket.timeout:
+    #         print('Socket timed out at', time.asctime())
+    #     tmpsock.close()
+
     @staticmethod
     def ask_for_name(address):
         tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -88,6 +154,8 @@ class ChatBuddy:
             print("ConnectionResetError in ask_for_name()")
         try:    # todo somewhereelse(?): also ask for name if appending to buddylist (if name changes)
             name = tmpsock.recv(1004).decode("ascii", "replace")
+            for buddy in buddylist:
+                print("BUDDY: " + str(buddy))
             if (name, address) not in buddylist:
                 buddylist.append((name, address))
                 print("\n::::: New Buddy found: " + name + " (" + address + ")")
@@ -220,11 +288,9 @@ class ChatBuddy:
         print('Valid options are S (Scan), L (List), C (Chat), G (GroupChat), Q (Quit)')
 
     def main_menu(self):
-        self.init()
         server_thread = threading.Thread(target=self.tcp_server)
         server_thread.daemon = True
         server_thread.start()
-        self.print_options()
         while True:
             try:
                 choice = input('choose an option (h for help): ')
