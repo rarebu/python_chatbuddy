@@ -186,7 +186,7 @@ class ChatBuddy:
 
     def handle_incoming_connection(self, conn, addr):
         try:
-            data = conn.recv(1004)  # todo<. receive until \0
+            data = conn.recv(1004)
             msg = data.decode("ascii", "replace")
             try:
                 if self.check_message(msg, addr) == "0":
@@ -217,6 +217,11 @@ class ChatBuddy:
             print("address already in use. trying to reassign..")
             try:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    sock.bind((mylocalip, 50000))
+                except OSError:
+                    print("OOPS - Cannot start TCP-Server")
+                    exit(1)
             except TypeError:
                 print("OOPS - TypeError in tcp_server")
         print("Binding Server to " + mylocalip + ":50000")
