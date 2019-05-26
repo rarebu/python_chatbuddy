@@ -16,17 +16,17 @@ class ChatBuddy:
 
     @staticmethod
     def initialize():
-        global scanning
         global my_name
         global buddy_list
         global my_local_ip
+        global message_list
 
         my_local_ip = ((([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith('127.')]
                          or [
             [(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in
              [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ['no IP found'])[0])
-        scanning = False
         buddy_list = []
+        message_list = []
         my_name = input('::::: Enter your Nickname: ')
 
     @staticmethod
@@ -43,7 +43,7 @@ class ChatBuddy:
         except IndexError:
             return -1
         if msg_prefix1 == '0':
-            return 0
+            return msg[2:]
         elif msg_prefix1 == '1':
             try:
                 msg_prefix2 = msg[1]
@@ -51,24 +51,38 @@ class ChatBuddy:
                 print('OOPS - Got invalid first two bytes in check_message()')
                 return -1
             if msg_prefix2 == '0':
-                return 10
+                print(':::msg priv: ' + msg[2:])
+                return -1
             elif msg_prefix2 == '1':
-                return 11
+                print(':::msg grp: ' + msg[2:])
+                return -1
             return -1
         return -1
 
     @staticmethod
-    def send_name_and_chat(sock):
+    def send_name_and_chat(sock, name):
         my_id = my_name.encode('ascii', 'replace')
         try:
             sock.send(my_id)
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
-        # todo: keep connection active here for chatting DRINGEND
+        # todo: keep connection active here for chatting DRINGEND ENTRYPOINT
+        while True:
+            for message in message_list:
+                if message[0] == name:
+                    print("sending message")
+                    # except ConnectionRefusedError:
+                    # data = input('\n::::: Buddy not online. Remove from Buddylist? (Y/N): ')
+                    # if data == 'Y':
+                    #     buddy_list.remove(buddy_list[entry])
+                    #     print('\n::::: Buddy removed')
+                    # else:
+                    #     sock.close()
+                    #     return
+            time.sleep(1)
         sock.close()
 
-    @staticmethod
-    def ask_for_name_and_chat(address):
+    def ask_for_name_and_chat(self, address):
         same_name = False
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -76,7 +90,7 @@ class ChatBuddy:
         except ConnectionRefusedError:
             print('OOPS - eventually port 50000 is used for something else there..')
             return
-        msg = '0\0'
+        msg = '0' + my_name + '\0'
         msg = msg.encode('ascii')
         try:
             sock.send(msg)
@@ -92,20 +106,27 @@ class ChatBuddy:
             print('OOPS - Socket timed out at', time.asctime())
             return
         if not buddy_list:
-            print('::::: New Buddy found: ' + name + ' (' + address + ')')
+            print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
             buddy_list.append((name, address))
-            sock.close()
-        for entry in buddy_list:
-            if entry[0] == name:
-                same_name = True
-                print('OOPS - cannot add client, name already exists..')  # todo handle if two clients have same name
-            break
-        if not same_name:
-            print('::::: New Buddy found: ' + name + ' (' + address + ')')
-            buddy_list.append((name, address))
-        # todo: keep connection active here for chatting DRINGEND
+        else:
+            for entry in buddy_list:
+                if entry[0] == name:
+                    same_name = True
+                    print('OOPS - cannot add client, name already exists')  # todo handle if two clients have same name
+                break
+            if not same_name:
+                print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
+                buddy_list.append((name, address))
+        while True:
+            try:
+                message = sock.recv(1004).decode('ascii', 'replace')
+            except socket.timeout:
+                print('OOPS - Socket timed out at', time.asctime())
+                break
+            self.check_message(message)
         sock.close()
-        # todo remove buddy from buddy_list after connection is closed
+        buddy_list.remove((name, address))
+        print('\n::::: Buddy ' + name + ' left')
 
     def port_scan(self, host):
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
@@ -119,15 +140,11 @@ class ChatBuddy:
                     ney_buddy_thread.start()
 
     def search_partners(self):
-        global scanning
-        global my_local_ip
         count = 0
         ip_list = my_local_ip.split('.')
-        scanning = True
         for ip in range(1, 256):
             count += 1
             self.port_scan(ip_list[0] + '.' + ip_list[1] + '.' + ip_list[2] + '.' + str(ip))
-        scanning = False
         print('::::: Scanning finished')
 
     def handle_incoming_connection(self, conn):
@@ -135,13 +152,9 @@ class ChatBuddy:
             data = conn.recv(1004)
             msg = data.decode('ascii', 'replace')
             check_message_value = self.check_message(msg)
-            if check_message_value == 0:
-                self.send_name_and_chat(conn)
+            if check_message_value != '-1':
+                self.send_name_and_chat(conn, check_message_value)
                 conn.close()
-            elif check_message_value == 10:
-                print('10')                 # todo chat? DRINGEND
-            elif check_message_value == 11:
-                print('11')                 # todo chat? DRINGEND
         except socket.timeout:
             print('Socket timed out at', time.asctime())
             conn.close()
@@ -199,48 +212,21 @@ class ChatBuddy:
         elif len(buddy_list) == 0:
             print('::::: The Buddylist is empty :/')
 
-    # @staticmethod
-    # def chat():
-    #     selection = input('\n::::: Please choose the Number of your ChatBuddy: ')
-    #     try:
-    #         entry = int(float(selection))
-    #     except ValueError:
-    #         print('OOPS - bad input')
-    #         return
-    #     data = input('\n::::: Enter your Message: ')
-    #     msg = ('10' + data + '\0').encode('ascii', 'replace')
-    #     try:
-    #         buddy = buddy_list[entry]
-    #         buddy_addr = buddy[1]
-    #         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         try:
-    #             sock.connect((buddy_addr, 50000))
-    #         except ConnectionResetError:
-    #             print('OOPS - ConnectionResetError in chat() at sock.connect()')
-    #         except ConnectionRefusedError:
-    #             data = input('\n::::: Buddy not online. Remove from Buddylist? (Y/N): ')
-    #             if data == 'Y':
-    #                 buddy_list.remove(buddy_list[entry])
-    #                 print('\n::::: Buddy removed')
-    #             else:
-    #                 sock.close()
-    #                 return
-    #         try:
-    #             sock.send(msg)
-    #         except ConnectionResetError:
-    #             print('OOPS - ConnectionResetError in chat() at sock.send()')
-    #             sock.close()
-    #             return
-    #         except BrokenPipeError:
-    #             sock.close()
-    #             return
-    #         print('::::: Message sent to ' + buddy[0] + ': ' + data)
-    #         sock.close()
-    #     except ValueError:
-    #         print('OOPS - ValueError in chat()')
-    #     except IndexError:
-    #         print('OOPS - IndexError in chat()')
-    #
+    @staticmethod
+    def chat():
+        selection = input('\n::::: Please choose the Number of your ChatBuddy: ')
+        try:
+            entry = int(float(selection))
+        except ValueError:
+            print('OOPS - bad input') #todo ENTRYPOINT
+            return
+        data = input('\n::::: Enter your Message: ')
+        msg = ('10' + data + '\0').encode('ascii', 'replace')
+        try:
+            buddy = buddy_list[entry]
+            buddy_name = buddy[0]
+
+
     # @staticmethod
     # def group_chat():
     #     data = input('\n::::: Enter your Message: ')
