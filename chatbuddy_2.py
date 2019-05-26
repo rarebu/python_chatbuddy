@@ -10,12 +10,12 @@ import sys
 
 class ChatBuddy:
     def __init__(self):
-        self.init()
+        self.initialize()
         self.start_tcp_server()
         self.main_menu()
 
     @staticmethod
-    def init():
+    def initialize():
         global scanning
         global my_name
         global buddy_list
