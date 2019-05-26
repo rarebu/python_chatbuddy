@@ -64,7 +64,7 @@ class ChatBuddy:
             sock.send(my_id)
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
-        # todo keep sock active here for chatting
+        # todo: keep connection active here for chatting DRINGEND
         sock.close()
 
     @staticmethod
@@ -103,9 +103,9 @@ class ChatBuddy:
         if not same_name:
             print('::::: New Buddy found: ' + name + ' (' + address + ')')
             buddy_list.append((name, address))
-        # todo: keep connection active here for chatting
+        # todo: keep connection active here for chatting DRINGEND
         sock.close()
-        # todo remove buddy from buddylist after connection is closed
+        # todo remove buddy from buddy_list after connection is closed
 
     def port_scan(self, host):
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
@@ -135,13 +135,13 @@ class ChatBuddy:
             data = conn.recv(1004)
             msg = data.decode('ascii', 'replace')
             check_message_value = self.check_message(msg)
-            if check_message_value == 0:  # todo checke hier aus was im falle einer nachricht passiert
+            if check_message_value == 0:
                 self.send_name_and_chat(conn)
                 conn.close()
             elif check_message_value == 10:
-                print('10')                 # todo chat?
+                print('10')                 # todo chat? DRINGEND
             elif check_message_value == 11:
-                print('11')                 # todo chat?
+                print('11')                 # todo chat? DRINGEND
         except socket.timeout:
             print('Socket timed out at', time.asctime())
             conn.close()
@@ -274,9 +274,10 @@ class ChatBuddy:
                 self.print_list()
             elif choice == 'C':
                 self.print_list()
-                self.chat()
+                # todo : chat?
             elif choice == 'G':
-                self.group_chat()
+                print('gc')
+                # todo : chat?
             elif choice == 'Q':
                 print('::::: Quitting..')
                 sys.exit()  # todo: proper exit
