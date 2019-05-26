@@ -83,33 +83,18 @@ class ChatBuddy:
             print('ConnectionResetError in send_name()')
         tmp_socket.close()
 
-    # @staticmethod
-    # def ask_for_name(address):
-    #     tmpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #     try:
-    #         tmpsock.connect((address, 50000))
-    #     except:
-    #         print('\nOOPS - in ask_for_name() at sock.connect')
-    #     msg = '0\0'
-    #     msg = msg.encode('ascii')
-    #     try:
-    #         print('ASKING FOR NAME')
-    #         tmpsock.send(msg)
-    #     except ConnectionResetError:
-    #         print('ConnectionResetError in ask_for_name()')
-    #     try:    # todo somewhereelse(?): also ask for name if appending to buddy_list (if name changes)
-    #         name = tmpsock.recv(1004).decode('ascii', 'replace')
-    #         for buddy in buddy_list:
-    #             if (buddy[1] != address) and (buddy[0] != name):
-    #                     print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
-    #                     buddy_list.append((name, address))
-    #             elif (buddy[1] == address) and (buddy[0] != name):
-    #                     print('\n::::: Buddy ' + buddy[1] + ' has a new name: ' + name + ' (' + address + ')')
-    #                     buddy_list.remove(buddy)
-    #                     buddy_list.append((name, address))
-    #     except socket.timeout:
-    #         print('Socket timed out at', time.asctime())
-    #     tmpsock.close()
+    # for buddy in buddylist:
+    #     if buddy[1] == address:
+    #         same_address = True
+    #         if buddy[0] == name:
+    #             same_name = True
+    # if not same_address and not same_name:
+    #     print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
+    #     buddylist.append((name, address))
+    # elif same_address and not same_name:
+    #     print('\n::::: Buddy ' + buddy[1] + ' has a new name: ' + name + ' (' + address + ')')
+    #     buddylist.remove(buddy)
+    #     buddylist.append((name, address))
 
     @staticmethod
     def ask_for_name(address):
