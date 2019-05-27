@@ -16,6 +16,7 @@ class ChatBuddy:
 
     @staticmethod
     def initialize():
+        global quitting
         global my_name
         global buddy_list
         global my_local_ip
@@ -26,17 +27,17 @@ class ChatBuddy:
                          or [
             [(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in
              [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ['no IP found'])[0])
+        quitting = False
         buddy_list = []
         message_list = []
         group_message_list = []
         my_name = input('\n::::: Enter your Nickname: ')
 
     @staticmethod
-    def check_message(data):
+    def check_message(data, name):
         try:
             data[0]
         except IndexError:
-            print('\n::::: you got scanned!')
             return '2'
         msg_list = data.split('\0')
         msg = msg_list[0]
@@ -53,10 +54,10 @@ class ChatBuddy:
                 print('OOPS - Got invalid first two bytes in check_message()')
                 return '-1'
             if msg_prefix2 == '0':
-                print('\n:---: Message from ' + 'name' + ': ' + msg[2:])
+                print('\n:---: Message from ' + name + ': ' + msg[2:])
                 return '-1'
             elif msg_prefix2 == '1':
-                print('\n:---: Groupmessage from ' + 'name' + ': ' + msg[2:])
+                print('\n:---: Groupmessage from ' + name + ': ' + msg[2:])
                 return '-1'
             return '-1'
         return '-1'
@@ -68,11 +69,12 @@ class ChatBuddy:
             sock.send(message)
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
-        self.add_to_buddylist(name, sock.getpeername()[0]);
-        p = threading.Thread(target=self.receive_messages, args=[sock])
+        self.add_to_buddylist(name, sock.getpeername()[0])
+        print("NEW THREAD IN SEND_NAME_AND_CHat : RECEIVE MESSAGES")
+        p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.daemon = True
         p.start()
-        self.send_messages(sock, name)
+        self.send_message(sock, name)
 
     @staticmethod
     def add_to_buddylist(name, address):
@@ -90,19 +92,30 @@ class ChatBuddy:
                 print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
                 buddy_list.append((name, address))
 
-    def receive_messages(self, sock):
+    def receive_messages(self, sock, name):
         while True:
-            try:
-                incoming_msg = sock.recv(1004).decode('ascii', 'replace')  # todo chatting
-                self.check_message(incoming_msg)
-            except socket.timeout:
-                print('OOPS - Socket timed out at', time.asctime())
+            global quitting
+            if quitting:
                 break
+            # try:
+            incoming_msg = sock.recv(1004).decode('ascii', 'replace')
+            print("check_message in recv_message")
+            if self.check_message(incoming_msg, name) == '2':
+                break;
+            # except socket.timeout:
+            #     print('OOPS - Socket timed out at', time.asctime())
+            #     break
             time.sleep(3)
+        address = sock.getpeername()[0]
+        buddy_list.remove((name, address))
+        print('\n::::: Buddy ' + name + ' left')
 
     @staticmethod
-    def send_messages(sock, name):
+    def send_message(sock, name):
         while True:
+            global quitting
+            if quitting:
+                break
             for message in message_list:
                 if message[0] == name:
                     msg = '10' + message[1] + '\0'
@@ -111,7 +124,7 @@ class ChatBuddy:
                         sock.send(msg_encoded)
                     except ConnectionResetError:
                         print('ConnectionResetError in send_name_and_chat()')
-                    print("Message Sent")
+                    print("::::: Message sent")
                     # except ConnectionRefusedError:  #todo: also send group messagees
                     # data = input('\n::::: Buddy not online. Remove from Buddylist? (Y/N): ')
                     # if data == 'Y':
@@ -121,8 +134,7 @@ class ChatBuddy:
                     #     sock.close()
                     #     return
                 message_list.remove(message)
-            time.sleep(1)
-        sock.close()
+            time.sleep(3)
 
     def ask_for_name_and_chat(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -146,11 +158,12 @@ class ChatBuddy:
         except socket.timeout:
             print('OOPS - Socket timed out at', time.asctime())
             return
-        self.add_to_buddylist(name, address);
-        p = threading.Thread(target=self.receive_messages, args=[sock])
+        self.add_to_buddylist(name, address)
+        p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.daemon = True
         p.start()
-        self.send_messages(sock, name)
+        self.send_message(sock, name)
+        sock.close()
         buddy_list.remove((name, address))
         print('\n::::: Buddy ' + name + ' left')
 
@@ -177,7 +190,8 @@ class ChatBuddy:
         try:
             data = conn.recv(1004)
             msg = data.decode('ascii', 'replace')
-            check_message_value = self.check_message(msg)
+            print("check_message in handle_incoming_connection")
+            check_message_value = self.check_message(msg, '')
             if check_message_value == '-1':
                 return
             elif check_message_value == '2':
@@ -199,6 +213,7 @@ class ChatBuddy:
         server_thread.start()
 
     def tcp_server(self):
+        global quitting
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             sock.bind((my_local_ip, 50000))
@@ -210,7 +225,8 @@ class ChatBuddy:
                     sock.bind((my_local_ip, 50000))
                 except OSError:
                     print('OOPS - Cannot start TCP-Server')
-                    sys.exit(1)  # todo: proper exit
+                    quitting = True
+                    sys.exit(1)
             except TypeError:
                 print('OOPS - TypeError in tcp_server')
         print('\n::::: Binding Server to ' + my_local_ip + ':50000')
@@ -264,6 +280,7 @@ class ChatBuddy:
         print('Valid options are S (Scan), L (List), C (Chat), G (GroupChat), Q (Quit)')
 
     def main_menu(self):
+        global quitting
         while True:
             try:
                 choice = input('\n::::: choose an option (h for help): ')
@@ -283,9 +300,11 @@ class ChatBuddy:
                 self.group_chat()
             elif choice == 'Q':
                 print('\n::::: Quitting..')
-                sys.exit()  # todo: proper exit
+                quitting = True
+                break
             else:
                 self.print_options()
+        sys.exit()
 
 
 cb = ChatBuddy()
