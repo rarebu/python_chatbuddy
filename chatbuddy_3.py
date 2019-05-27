@@ -83,7 +83,7 @@ class ChatBuddy:
             for entry in buddy_list:
                 if entry[0] == name:
                     same_name = True
-                    print('\nOOPS - cannot add client, name already exists')  # todo handle if two clients have same name
+                    print('\nOOPS - cannot add Buddy (name already exists in Buddylist)')
                 break
             if not same_name:
                 print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
@@ -224,6 +224,9 @@ class ChatBuddy:
         print('\n::::: Binding Server to ' + my_local_ip + ':50000')
         sock.listen(1)
         while True:
+            global quitting
+            if quitting:
+                break
             try:
                 conn, address = sock.accept()
                 if my_local_ip == address[0]:
@@ -233,7 +236,6 @@ class ChatBuddy:
                 p.start()
             except socket.timeout:
                 pass
-        conn.close()
         sock.close()
 
     @staticmethod
