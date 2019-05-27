@@ -21,7 +21,6 @@ class ChatBuddy:
         global buddy_list
         global my_local_ip
         global message_list
-        global group_message_list
 
         my_local_ip = ((([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith('127.')]
                          or [
@@ -30,7 +29,6 @@ class ChatBuddy:
         quitting = False
         buddy_list = []
         message_list = []
-        group_message_list = []
         my_name = input('\n::::: Enter your Nickname: ')
 
     @staticmethod
@@ -51,7 +49,7 @@ class ChatBuddy:
             try:
                 msg_prefix2 = msg[1]
             except IndexError:
-                print('OOPS - Got invalid first two bytes in check_message()')
+                print('\nOOPS - Got invalid first two bytes in check_message()')
                 return '-1'
             if msg_prefix2 == '0':
                 print('\n:---: Message from ' + name + ': ' + msg[2:])
@@ -69,27 +67,27 @@ class ChatBuddy:
             sock.send(message)
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
-        self.add_to_buddylist(name, sock.getpeername()[0])
+        self.add_to_buddylist(name, sock.getpeername()[0], sock)
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.daemon = True
         p.start()
         self.send_message(sock, name)
 
     @staticmethod
-    def add_to_buddylist(name, address):
+    def add_to_buddylist(name, address, sock):
         same_name = False
         if not buddy_list:
             print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
-            buddy_list.append((name, address))
+            buddy_list.append((name, address, sock))
         else:
             for entry in buddy_list:
                 if entry[0] == name:
                     same_name = True
-                    print('OOPS - cannot add client, name already exists')  # todo handle if two clients have same name
+                    print('\nOOPS - cannot add client, name already exists')  # todo handle if two clients have same name
                 break
             if not same_name:
                 print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
-                buddy_list.append((name, address))
+                buddy_list.append((name, address, sock))
 
     def receive_messages(self, sock, name):
         while True:
@@ -101,7 +99,7 @@ class ChatBuddy:
                 if self.check_message(incoming_msg, name) == '2':
                     break
             except socket.timeout:
-                print('OOPS - Socket timed out at', time.asctime())
+                print('\nOOPS - Socket timed out at', time.asctime())
                 break
         address = sock.getpeername()[0]
         try:
@@ -126,42 +124,30 @@ class ChatBuddy:
                         print('ConnectionResetError in send_name_and_chat()')
                     print('\n::::: Message sent')
                     message_list.remove(message)
-            for message in group_message_list:
-                msg = '11' + message + '\0'
-                msg_encoded = msg.encode('ascii', 'replace')
-                try:
-                    sock.send(msg_encoded)
-                except ConnectionResetError:
-                    print('OOPS - ConnectionResetError in send_name_and_chat()')
-                print('\n::::: Groupmessage sent')
-                try:
-                    group_message_list.remove(message)
-                except ValueError:
-                    pass
 
     def ask_for_name_and_chat(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             sock.connect((address, 50000))
         except ConnectionRefusedError:
-            print('OOPS - eventually port 50000 is used for something else there..')
+            print('\nOOPS - eventually port 50000 is used for something else there..')
             return
         msg = '0' + my_name + '\0'
         msg = msg.encode('ascii')
         try:
             sock.send(msg)
         except ConnectionResetError:
-            print('OOPS - ConnectionResetError in ask_for_name()')
+            print('\nOOPS - ConnectionResetError in ask_for_name()')
             return
         except BrokenPipeError:
-            print('OOPS - Broken Pipe')
+            print('\nOOPS - Broken Pipe')
             return
         try:
             name = sock.recv(1004).decode('ascii', 'replace')
         except socket.timeout:
-            print('OOPS - Socket timed out at', time.asctime())
+            print('\nOOPS - Socket timed out at', time.asctime())
             return
-        self.add_to_buddylist(name, address)
+        self.add_to_buddylist(name, address, sock)
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.daemon = True
         p.start()
@@ -210,7 +196,7 @@ class ChatBuddy:
             conn.close()
             return
         except OSError:
-            print('OOPS - OSError in handle_incoming_connection()')
+            print('\nOOPS - OSError in handle_incoming_connection()')
             return
 
     def start_tcp_server(self):
@@ -224,17 +210,17 @@ class ChatBuddy:
         try:
             sock.bind((my_local_ip, 50000))
         except OSError:
-            print('OOPS - Address already in use. Trying to reassign..')
+            print('\nOOPS - Address already in use. Trying to reassign..')
             try:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 try:
                     sock.bind((my_local_ip, 50000))
                 except OSError:
-                    print('OOPS - Cannot start TCP-Server')
+                    print('\nOOPS - Cannot start TCP-Server')
                     quitting = True
                     sys.exit(1)
             except TypeError:
-                print('OOPS - TypeError in tcp_server')
+                print('\nOOPS - TypeError in tcp_server')
         print('\n::::: Binding Server to ' + my_local_ip + ':50000')
         sock.listen(1)
         while True:
@@ -270,7 +256,7 @@ class ChatBuddy:
         try:
             entry = int(float(selection))
         except ValueError:
-            print('OOPS - bad input')
+            print('\nOOPS - bad input')
             return
         data = input('\n::::: Enter your Message: ')
         buddy = buddy_list[entry]
@@ -279,7 +265,12 @@ class ChatBuddy:
     @staticmethod
     def group_chat():
         data = input('\n::::: Enter your Message: ')
-        group_message_list.append(data)
+        msg = '11' + data + '\0'
+        message = msg.encode('ascii', 'replace')
+        for buddy in buddy_list:
+            sock = buddy[2]
+            sock.send(message)
+        print('\n::::: Groupmessage sent')
 
     @staticmethod
     def print_options():
