@@ -20,6 +20,7 @@ class ChatBuddy:
         global buddy_list
         global my_local_ip
         global message_list
+        global group_message_list
 
         my_local_ip = ((([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith('127.')]
                          or [
@@ -27,6 +28,7 @@ class ChatBuddy:
              [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ['no IP found'])[0])
         buddy_list = []
         message_list = []
+        group_message_list = []
         my_name = input('\n::::: Enter your Nickname: ')
 
     @staticmethod
@@ -98,7 +100,8 @@ class ChatBuddy:
                 break
             time.sleep(3)
 
-    def send_messages(self, sock, name):
+    @staticmethod
+    def send_messages(sock, name):
         while True:
             for message in message_list:
                 if message[0] == name:
@@ -109,7 +112,7 @@ class ChatBuddy:
                     except ConnectionResetError:
                         print('ConnectionResetError in send_name_and_chat()')
                     print("Message Sent")
-                    # except ConnectionRefusedError:
+                    # except ConnectionRefusedError:  #todo: also send group messagees
                     # data = input('\n::::: Buddy not online. Remove from Buddylist? (Y/N): ')
                     # if data == 'Y':
                     #     buddy_list.remove(buddy_list[entry])
@@ -228,7 +231,7 @@ class ChatBuddy:
     @staticmethod
     def print_list():
         if len(buddy_list) > 1:
-            print('\n::::: There are ' + str(len(buddy_list)) + ' buddys in your Buddylist')
+            print('\n::::: There are ' + str(len(buddy_list)) + ' Buddys in your Buddylist')
             count = 0
             for buddy in buddy_list:
                 print('\n::::: ' + str(count) + ' ' + buddy[0] + ' (' + buddy_list[0][1] + ')')
@@ -251,21 +254,10 @@ class ChatBuddy:
         buddy = buddy_list[entry]
         message_list.append((buddy[0], data))
 
-
-
-    # @staticmethod
-    # def group_chat():
-    #     data = input('\n::::: Enter your Message: ')
-    #     msg = ('11' + data + '\0').encode('ascii', 'replace')
-    #     for buddy in buddy_list:
-    #         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         sock.connect((buddy[1], 50000))
-    #         try:
-    #             sock.send(msg)
-    #         except ConnectionResetError:
-    #             print('\n::::: ConnectionResetError in group_chat()')
-    #             return ConnectionResetError
-    #         print('\n::::: Message Sent: ' + data + ' (Group Message)')
+    @staticmethod
+    def group_chat():
+        data = input('\n::::: Enter your Message: ')
+        group_message_list.append(data)
 
     @staticmethod
     def print_options():
@@ -288,8 +280,7 @@ class ChatBuddy:
                 self.print_list()
                 self.chat()
             elif choice == 'G':
-                print('gc')
-                # todo : chat?
+                self.group_chat()
             elif choice == 'Q':
                 print('\n::::: Quitting..')
                 sys.exit()  # todo: proper exit
