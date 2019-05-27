@@ -83,7 +83,6 @@ class ChatBuddy:
             for entry in buddy_list:
                 if entry[0] == name:
                     same_name = True
-                    print('\nOOPS - cannot add Buddy (name already exists in Buddylist)')
                 break
             if not same_name:
                 print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
@@ -94,13 +93,13 @@ class ChatBuddy:
             global quitting
             if quitting:
                 break
-            try:
-                incoming_msg = sock.recv(1004).decode('ascii', 'replace')
-                if self.check_message(incoming_msg, name) == '2':
-                    break
-            except socket.timeout:
-                print('\nOOPS - Socket timed out at', time.asctime())
+            # try:
+            incoming_msg = sock.recv(1004).decode('ascii', 'replace')
+            if self.check_message(incoming_msg, name) == '2':
                 break
+            # except socket.timeout:
+            #     print('\nOOPS - Socket timed out at', time.asctime())
+            #     break
         address = sock.getpeername()[0]
         try:
             buddy_list.remove((name, address))
@@ -123,7 +122,10 @@ class ChatBuddy:
                     except ConnectionResetError:
                         print('ConnectionResetError in send_name_and_chat()')
                     print('\n::::: Message sent')
-                    message_list.remove(message)
+                    try:
+                        message_list.remove(message)
+                    except ValueError:
+                        pass
 
     def ask_for_name_and_chat(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -148,6 +150,7 @@ class ChatBuddy:
             print('\nOOPS - Socket timed out at', time.asctime())
             return
         self.add_to_buddylist(name, address, sock)
+        self.send_message(sock, name)
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.daemon = True
         p.start()
@@ -224,7 +227,6 @@ class ChatBuddy:
         print('\n::::: Binding Server to ' + my_local_ip + ':50000')
         sock.listen(1)
         while True:
-            global quitting
             if quitting:
                 break
             try:
