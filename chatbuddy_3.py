@@ -70,7 +70,6 @@ class ChatBuddy:
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
         self.add_to_buddylist(name, sock.getpeername()[0])
-        print("NEW THREAD IN SEND_NAME_AND_CHat : RECEIVE MESSAGES")
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.daemon = True
         p.start()
@@ -97,18 +96,19 @@ class ChatBuddy:
             global quitting
             if quitting:
                 break
-            # try:
-            incoming_msg = sock.recv(1004).decode('ascii', 'replace')
-            print("check_message in recv_message")
-            if self.check_message(incoming_msg, name) == '2':
-                break;
-            # except socket.timeout:
-            #     print('OOPS - Socket timed out at', time.asctime())
-            #     break
-            time.sleep(3)
+            try:
+                incoming_msg = sock.recv(1004).decode('ascii', 'replace')
+                if self.check_message(incoming_msg, name) == '2':
+                    break
+            except socket.timeout:
+                print('OOPS - Socket timed out at', time.asctime())
+                break
         address = sock.getpeername()[0]
-        buddy_list.remove((name, address))
-        print('\n::::: Buddy ' + name + ' left')
+        try:
+            buddy_list.remove((name, address))
+            print('\n::::: Buddy ' + name + ' left')
+        except ValueError:
+            pass
 
     @staticmethod
     def send_message(sock, name):
@@ -124,17 +124,20 @@ class ChatBuddy:
                         sock.send(msg_encoded)
                     except ConnectionResetError:
                         print('ConnectionResetError in send_name_and_chat()')
-                    print("::::: Message sent")
-                    # except ConnectionRefusedError:  #todo: also send group messagees
-                    # data = input('\n::::: Buddy not online. Remove from Buddylist? (Y/N): ')
-                    # if data == 'Y':
-                    #     buddy_list.remove(buddy_list[entry])
-                    #     print('\n::::: Buddy removed')
-                    # else:
-                    #     sock.close()
-                    #     return
-                message_list.remove(message)
-            time.sleep(3)
+                    print('\n::::: Message sent')
+                    message_list.remove(message)
+            for message in group_message_list:
+                msg = '11' + message + '\0'
+                msg_encoded = msg.encode('ascii', 'replace')
+                try:
+                    sock.send(msg_encoded)
+                except ConnectionResetError:
+                    print('OOPS - ConnectionResetError in send_name_and_chat()')
+                print('\n::::: Groupmessage sent')
+                try:
+                    group_message_list.remove(message)
+                except ValueError:
+                    pass
 
     def ask_for_name_and_chat(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -164,7 +167,11 @@ class ChatBuddy:
         p.start()
         self.send_message(sock, name)
         sock.close()
-        buddy_list.remove((name, address))
+        try:
+            buddy_list.remove((name, address))
+            print('\n::::: Buddy ' + name + ' left')
+        except ValueError:
+            pass
         print('\n::::: Buddy ' + name + ' left')
 
     def port_scan(self, host):
@@ -190,7 +197,6 @@ class ChatBuddy:
         try:
             data = conn.recv(1004)
             msg = data.decode('ascii', 'replace')
-            print("check_message in handle_incoming_connection")
             check_message_value = self.check_message(msg, '')
             if check_message_value == '-1':
                 return
