@@ -69,27 +69,30 @@ class ChatBuddy:
             sock.send(message)
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
-        self.add_to_buddylist(name, address, sock)
+        if self.add_to_buddylist(name, address, sock) == 1:
+            return
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.start()
         p.join()
         self.remove_buddy(name)
 
     @staticmethod
-    def add_to_buddylist(name, address, sock):
+    def add_to_buddylist(name, address, sock):      # wenn buddy schon da, mache nichts
         if not buddy_list:
             print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
             buddy_list.append((name, address, sock))
+            return 0
         else:
             for entry in buddy_list:
                 if entry[0] == name:
                     if entry[1] == address:     # if buddy has same name and address, do nothing
-                        return
+                        return 1
                     else:
                         print('\n::::: New Buddy with same name found.')
                 break
             print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
             buddy_list.append((name, address, sock))
+            return 0
 
     def receive_messages(self, sock, name):
         while True:
@@ -158,7 +161,8 @@ class ChatBuddy:
         except socket.timeout:
             print('\nOOPS - Socket timed out at', time.asctime())
             return
-        self.add_to_buddylist(name, address, sock)
+        if self.add_to_buddylist(name, address, sock) == 1:     # wenn buddy schon da, mache nichts
+            return
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.start()
         p.join()
@@ -279,7 +283,10 @@ class ChatBuddy:
             print('\nOOPS - bad input')
             return
         data = input('\n::::: Enter your Message: ')
-        buddy = buddy_list[entry]
+        try:
+            buddy = buddy_list[entry]
+        except IndexError:
+            return
         message_list.append((buddy[0], data))
 
     @staticmethod
