@@ -12,6 +12,7 @@ class ChatBuddy:
     def __init__(self):
         self.initialize()
         self.start_tcp_server()
+        self.start_send_messages()
         self.main_menu()
 
     @staticmethod
@@ -61,32 +62,34 @@ class ChatBuddy:
         return '-1'
 
     def send_name_and_chat(self, sock, name):
+        address = sock.getpeername()[0]
         msg = my_name + ''
         message = msg.encode('ascii', 'replace')
         try:
             sock.send(message)
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
-        self.add_to_buddylist(name, sock.getpeername()[0], sock)
+        self.add_to_buddylist(name, address, sock)
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
-        p.daemon = True
         p.start()
-        self.send_message(sock, name)
+        p.join()
+        self.remove_buddy(name)
 
     @staticmethod
     def add_to_buddylist(name, address, sock):
-        same_name = False
         if not buddy_list:
             print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
             buddy_list.append((name, address, sock))
         else:
             for entry in buddy_list:
                 if entry[0] == name:
-                    same_name = True
+                    if entry[1] == address:     # if buddy has same name and address, do nothing
+                        return
+                    else:
+                        print('\n::::: New Buddy with same name found.')
                 break
-            if not same_name:
-                print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
-                buddy_list.append((name, address, sock))
+            print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
+            buddy_list.append((name, address, sock))
 
     def receive_messages(self, sock, name):
         while True:
@@ -100,32 +103,38 @@ class ChatBuddy:
             # except socket.timeout:
             #     print('\nOOPS - Socket timed out at', time.asctime())
             #     break
-        address = sock.getpeername()[0]
-        try:
-            buddy_list.remove((name, address))
-            print('\n::::: Buddy ' + name + ' left')
-        except ValueError:
-            pass
+        self.remove_buddy(name)
 
-    @staticmethod
-    def send_message(sock, name):
+    def start_send_messages(self):
+        p = threading.Thread(target=self.send_messages)
+        p.daemon = True
+        p.start()
+
+    def send_messages(self):
+        global message_list
+        global buddy_list
         while True:
             global quitting
             if quitting:
                 break
             for message in message_list:
-                if message[0] == name:
-                    msg = '10' + message[1] + '\0'
-                    msg_encoded = msg.encode('ascii', 'replace')
-                    try:
-                        sock.send(msg_encoded)
-                    except ConnectionResetError:
-                        print('ConnectionResetError in send_name_and_chat()')
-                    print('\n::::: Message sent')
-                    try:
-                        message_list.remove(message)
-                    except ValueError:
-                        pass
+                for buddy in buddy_list:
+                    if message[0] == buddy[0]:
+                        msg = '10' + message[1] + '\0'
+                        msg_encoded = msg.encode('ascii', 'replace')
+                        try:
+                            try:
+                                buddy[2].send(msg_encoded)
+                            except OSError:
+                                print()
+                                self.remove_buddy(buddy[0])
+                        except ConnectionResetError:
+                            print('ConnectionResetError in send_messages()')
+                        print('\n::::: Message sent')
+                        try:
+                            message_list.remove(message)
+                        except ValueError:
+                            pass
 
     def ask_for_name_and_chat(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -150,18 +159,21 @@ class ChatBuddy:
             print('\nOOPS - Socket timed out at', time.asctime())
             return
         self.add_to_buddylist(name, address, sock)
-        self.send_message(sock, name)
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
-        p.daemon = True
         p.start()
-        self.send_message(sock, name)
+        p.join()
         sock.close()
-        try:
-            buddy_list.remove((name, address))
-            print('\n::::: Buddy ' + name + ' left')
-        except ValueError:
-            pass
-        print('\n::::: Buddy ' + name + ' left')
+        self.remove_buddy(name)
+
+    @staticmethod
+    def remove_buddy(name):
+        for buddy in buddy_list:
+            if buddy[0] == name:
+                try:
+                    buddy_list.remove(buddy)
+                    print('\n::::: Buddy ' + name + ' left')
+                except ValueError:
+                    pass
 
     def port_scan(self, host):
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
@@ -178,8 +190,12 @@ class ChatBuddy:
         count = 0
         ip_list = my_local_ip.split('.')
         for ip in range(1, 256):
+            target_ip = ip_list[0] + '.' + ip_list[1] + '.' + ip_list[2] + '.' + str(ip)
+            for buddy in buddy_list:        # only scan addresses that are not in buddylist
+                if target_ip == buddy[1]:
+                    continue
             count += 1
-            self.port_scan(ip_list[0] + '.' + ip_list[1] + '.' + ip_list[2] + '.' + str(ip))
+            self.port_scan(target_ip)
         print('\n::::: Scanning finished')
 
     def handle_incoming_connection(self, conn):
