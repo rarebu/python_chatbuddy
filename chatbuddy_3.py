@@ -9,7 +9,7 @@ import sys
 
 
 class ChatBuddy:
-    def __init__(self):
+    def start(self):
         self.initialize()
         self.start_tcp_server()
         self.start_send_messages()
@@ -25,8 +25,8 @@ class ChatBuddy:
 
         my_local_ip = ((([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith('127.')]
                          or [
-            [(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in
-             [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ['no IP found'])[0])
+                             [(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in
+                              [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ['no IP found'])[0])
         quitting = False
         buddy_list = []
         message_list = []
@@ -44,14 +44,14 @@ class ChatBuddy:
             msg_prefix1 = msg[0]
         except IndexError:
             return '-1'
-        if msg_prefix1 == '0':
+        if msg_prefix1 == '1':
             return msg[1:]
-        elif msg_prefix1 == '1':
+        elif msg_prefix1 == '0':
             try:
                 msg_prefix2 = msg[1]
             except IndexError:
                 print('\nOOPS - Got invalid first two bytes in check_message()')
-                return '-1'
+                return '3'
             if msg_prefix2 == '0':
                 print('\n:---: Message from ' + name + ': ' + msg[2:])
                 return '-1'
@@ -63,7 +63,7 @@ class ChatBuddy:
 
     def send_name_and_chat(self, sock, name):
         address = sock.getpeername()[0]
-        msg = my_name + ''
+        msg = my_name + '\0'
         message = msg.encode('ascii', 'replace')
         try:
             sock.send(message)
@@ -77,7 +77,7 @@ class ChatBuddy:
         self.remove_buddy(name)
 
     @staticmethod
-    def add_to_buddylist(name, address, sock):      # wenn buddy schon da, mache nichts
+    def add_to_buddylist(name, address, sock):  # wenn buddy schon da, mache nichts
         if not buddy_list:
             print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
             buddy_list.append((name, address, sock))
@@ -85,7 +85,7 @@ class ChatBuddy:
         else:
             for entry in buddy_list:
                 if entry[0] == name:
-                    if entry[1] == address:     # if buddy has same name and address, do nothing
+                    if entry[1] == address:  # if buddy has same name and address, do nothing
                         return 1
                     else:
                         print('\n::::: New Buddy with same name found.')
@@ -123,7 +123,7 @@ class ChatBuddy:
             for message in message_list:
                 for buddy in buddy_list:
                     if message[0] == buddy[0]:
-                        msg = '10' + message[1] + '\0'
+                        msg = '00' + message[1] + '\0'
                         msg_encoded = msg.encode('ascii', 'replace')
                         try:
                             try:
@@ -146,7 +146,7 @@ class ChatBuddy:
         except ConnectionRefusedError:
             print('\nOOPS - eventually port 50000 is used for something else there..')
             return
-        msg = '0' + my_name + '\0'
+        msg = '1' + my_name + '\0'
         msg = msg.encode('ascii')
         try:
             sock.send(msg)
@@ -161,7 +161,7 @@ class ChatBuddy:
         except socket.timeout:
             print('\nOOPS - Socket timed out at', time.asctime())
             return
-        if self.add_to_buddylist(name, address, sock) == 1:     # wenn buddy schon da, mache nichts
+        if self.add_to_buddylist(name, address, sock) == 1:  # wenn buddy schon da, mache nichts
             return
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.start()
@@ -182,8 +182,7 @@ class ChatBuddy:
     def port_scan(self, host):
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
             sock.settimeout(.1)
-            conn = sock.connect_ex(
-                (host, 50000))
+            conn = sock.connect_ex((host, 50000))
             if conn == 0:
                 if host != my_local_ip:
                     ney_buddy_thread = threading.Thread(target=self.ask_for_name_and_chat, kwargs={'address': host})
@@ -195,7 +194,7 @@ class ChatBuddy:
         ip_list = my_local_ip.split('.')
         for ip in range(1, 256):
             target_ip = ip_list[0] + '.' + ip_list[1] + '.' + ip_list[2] + '.' + str(ip)
-            for buddy in buddy_list:        # only scan addresses that are not in buddylist
+            for buddy in buddy_list:  # only scan addresses that are not in buddylist
                 if target_ip == buddy[1]:
                     continue
             count += 1
@@ -211,6 +210,9 @@ class ChatBuddy:
                 return
             elif check_message_value == '2':
                 return
+            elif check_message_value == '3':
+                self.send_name_and_chat(conn, check_message_value)
+                conn.close()
             else:
                 self.send_name_and_chat(conn, check_message_value)
                 conn.close()
@@ -292,7 +294,7 @@ class ChatBuddy:
     @staticmethod
     def group_chat():
         data = input('\n::::: Enter your Message: ')
-        msg = '11' + data + '\0'
+        msg = '01' + data + '\0'
         message = msg.encode('ascii', 'replace')
         for buddy in buddy_list:
             sock = buddy[2]
@@ -332,3 +334,4 @@ class ChatBuddy:
 
 
 cb = ChatBuddy()
+cb.start()
