@@ -39,37 +39,38 @@ class ChatBuddy:
         except IndexError:
             return '2'
         msg_list = data.split('\0')
-        msg = msg_list[0]
         try:
-            msg_prefix1 = msg[0]
+            msg_prefix1 = msg_list[0][0]
         except IndexError:
             return '-1'
         if msg_prefix1 == '1':
-            return msg[1:]
+            return msg_list[0][1:]
         elif msg_prefix1 == '0':
             try:
-                msg_prefix2 = msg[1]
+                msg_prefix2 = msg_list[0][1]
             except IndexError:
                 print('\nOOPS - Got invalid first two bytes in check_message()')
                 return '3'
             if msg_prefix2 == '0':
-                print('\n:---: Message from ' + name + ': ' + msg[2:])
+                print('\n:---: Message from ' + name + ': ' + msg_list[0][2:])
                 return '-1'
             elif msg_prefix2 == '1':
-                print('\n:---: Groupmessage from ' + name + ': ' + msg[2:])
+                print('\n:---: Groupmessage from ' + name + ': ' + msg_list[0][2:])
                 return '-1'
             return '-1'
+        elif msg_prefix1 == '2':
+            return 4
         return '-1'
 
     def send_name_and_chat(self, sock, name):
         address = sock.getpeername()[0]
-        msg = my_name + '\0'
-        message = msg.encode('ascii', 'replace')
+        message = my_name + '\0'
+        message = message.encode('ascii', 'replace')
         try:
             sock.send(message)
         except ConnectionResetError:
             print('ConnectionResetError in send_name()')
-        if self.add_to_buddylist(name, address, sock) == 1:
+        if self.add_to_buddy_list(name, address, sock) == 1:
             return
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.start()
@@ -77,7 +78,7 @@ class ChatBuddy:
         self.remove_buddy(name)
 
     @staticmethod
-    def add_to_buddylist(name, address, sock):  # wenn buddy schon da, mache nichts
+    def add_to_buddy_list(name, address, sock):  # wenn buddy schon da, mache nichts
         if not buddy_list:
             print('\n::::: New Buddy found: ' + name + ' (' + address + ')')
             buddy_list.append((name, address, sock))
@@ -99,13 +100,16 @@ class ChatBuddy:
             global quitting
             if quitting:
                 break
-            # try:
-            incoming_msg = sock.recv(1004).decode('ascii', 'replace')
-            if self.check_message(incoming_msg, name) == '2':
+            try:
+                incoming_msg = sock.recv(1004).decode('ascii', 'replace')
+                check_message_value = self.check_message(incoming_msg, name)
+                if check_message_value == '2':
+                    break
+                elif check_message_value == '4':
+                    break
+            except socket.timeout:
+                print('\nOOPS - Socket timed out at', time.asctime())
                 break
-            # except socket.timeout:
-            #     print('\nOOPS - Socket timed out at', time.asctime())
-            #     break
         self.remove_buddy(name)
 
     def start_send_messages(self):
@@ -119,15 +123,18 @@ class ChatBuddy:
         while True:
             global quitting
             if quitting:
-                break
-            for message in message_list:
                 for buddy in buddy_list:
-                    if message[0] == buddy[0]:
-                        msg = '00' + message[1] + '\0'
-                        msg_encoded = msg.encode('ascii', 'replace')
+                    bye_msg = '2\0'.encode('ascii', 'replace')
+                    buddy[2].send(bye_msg)
+                break
+            for entry in message_list:
+                for buddy in buddy_list:
+                    if entry[0] == buddy[0]:
+                        message = '00' + entry[1] + '\0'
+                        message = message.encode('ascii', 'replace')
                         try:
                             try:
-                                buddy[2].send(msg_encoded)
+                                buddy[2].send(message)
                             except OSError:
                                 print()
                                 self.remove_buddy(buddy[0])
@@ -135,7 +142,7 @@ class ChatBuddy:
                             print('ConnectionResetError in send_messages()')
                         print('\n::::: Message sent')
                         try:
-                            message_list.remove(message)
+                            message_list.remove(entry)
                         except ValueError:
                             pass
 
@@ -146,10 +153,10 @@ class ChatBuddy:
         except ConnectionRefusedError:
             print('\nOOPS - eventually port 50000 is used for something else there..')
             return
-        msg = '1' + my_name + '\0'
-        msg = msg.encode('ascii')
+        message = '1' + my_name + '\0'
+        message = message.encode('ascii')
         try:
-            sock.send(msg)
+            sock.send(message)
         except ConnectionResetError:
             print('\nOOPS - ConnectionResetError in ask_for_name()')
             return
@@ -161,7 +168,7 @@ class ChatBuddy:
         except socket.timeout:
             print('\nOOPS - Socket timed out at', time.asctime())
             return
-        if self.add_to_buddylist(name, address, sock) == 1:  # wenn buddy schon da, mache nichts
+        if self.add_to_buddy_list(name, address, sock) == 1:  # wenn buddy schon da, mache nichts
             return
         p = threading.Thread(target=self.receive_messages, args=[sock, name])
         p.start()
@@ -204,8 +211,8 @@ class ChatBuddy:
     def handle_incoming_connection(self, conn):
         try:
             data = conn.recv(1004)
-            msg = data.decode('ascii', 'replace')
-            check_message_value = self.check_message(msg, '')
+            message = data.decode('ascii', 'replace')
+            check_message_value = self.check_message(message, '')
             if check_message_value == '-1':
                 return
             elif check_message_value == '2':
@@ -213,6 +220,8 @@ class ChatBuddy:
             elif check_message_value == '3':
                 self.send_name_and_chat(conn, check_message_value)
                 conn.close()
+            elif check_message_value == '4':    # partner quitting
+                return
             else:
                 self.send_name_and_chat(conn, check_message_value)
                 conn.close()
@@ -294,8 +303,8 @@ class ChatBuddy:
     @staticmethod
     def group_chat():
         data = input('\n::::: Enter your Message: ')
-        msg = '01' + data + '\0'
-        message = msg.encode('ascii', 'replace')
+        message = '01' + data + '\0'
+        message = message.encode('ascii', 'replace')
         for buddy in buddy_list:
             sock = buddy[2]
             sock.send(message)
